@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Repair SOP 分析儀表板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f1117;--surface:#1a1d27;--surface2:#222535;--border:#2e3247;--accent:#6ee7b7;--accent2:#f59e0b;--accent3:#818cf8;--text:#e2e8f0;--muted:#64748b;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;min-height:100vh;padding:24px;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 70% 50% at 15% 5%,rgba(110,231,183,.04),transparent 60%),radial-gradient(ellipse 50% 60% at 85% 90%,rgba(129,140,248,.04),transparent 60%);pointer-events:none;z-index:0;}
+.wrap{max-width:1400px;margin:0 auto;position:relative;z-index:1;}
+header{margin-bottom:24px;}
+header h1{font-family:'JetBrains Mono',monospace;font-size:18px;color:var(--accent);letter-spacing:-.5px;margin-bottom:4px;}
+header p{font-size:12px;color:var(--muted);}
+.lv1-tabs{display:flex;gap:8px;margin-bottom:20px;}
+.lv1-tab{padding:10px 32px;border-radius:8px;cursor:pointer;font-size:14px;font-family:'JetBrains Mono',monospace;font-weight:700;border:2px solid var(--border);background:var(--surface);color:var(--muted);transition:all .2s;}
+.lv1-tab:hover{color:var(--text);}
+.lv1-tab[data-prod="PCIe"].active{background:#6ee7b7;color:#0f1117;border-color:#6ee7b7;}
+.lv1-tab[data-prod="SATA"].active{background:#f59e0b;color:#0f1117;border-color:#f59e0b;}
+.lv1-tab[data-prod="USB"].active{background:#818cf8;color:#0f1117;border-color:#818cf8;}
+.summary-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:20px;}
+.scard{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;cursor:pointer;transition:all .2s;}
+.scard:hover{transform:translateY(-1px);border-color:var(--accent2);}
+.scard.active{border-color:var(--accent2);background:rgba(245,158,11,.07);}
+.scard.unavail{opacity:.3;cursor:default;pointer-events:none;}
+.scard-type{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;margin-bottom:4px;}
+.scard-val{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--text);line-height:1;}
+.scard-sub{font-size:10px;color:var(--muted);margin-top:3px;}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.card-title{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:6px;}
+.card-title::before{content:'';width:3px;height:12px;border-radius:2px;background:var(--accent);display:inline-block;flex-shrink:0;}
+.sop-panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;}
+.sop-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.sop-header h2{font-size:15px;font-family:'JetBrains Mono',monospace;color:var(--accent2);}
+.sop-meta{font-size:11px;color:var(--muted);}
+.sop-list{display:flex;flex-direction:column;gap:7px;}
+.sop-item{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:10px 14px;display:grid;grid-template-columns:34px 1fr 52px;align-items:center;gap:10px;}
+.sop-rank{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);text-align:center;}
+.sop-text{font-size:11px;color:var(--text);line-height:1.5;}
+.bar-fill{height:3px;border-radius:2px;background:var(--accent2);margin-top:5px;opacity:.65;}
+.sop-count{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--accent2);text-align:right;}
+.empty-msg{text-align:center;padding:32px;color:var(--muted);font-size:13px;}
+@media(max-width:800px){.chart-row{grid-template-columns:1fr;}.lv1-tabs{flex-wrap:wrap;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>// PRODUCT → REPAIR_TYPE → SOP ANALYSIS</h1>
+    <p>第一層：Product 分類 ／ 第二層：Repair_Type ／ 已排除空值、無、特定字眼</p>
+  </header>
+
+  <!-- L1: Product -->
+
+  <div class="lv1-tabs">
+    <div class="lv1-tab active" data-prod="PCIe" onclick="selectProduct('PCIe')">PCIe <span style="font-size:11px;opacity:.7">1416筆</span></div>
+    <div class="lv1-tab" data-prod="SATA" onclick="selectProduct('SATA')">SATA <span style="font-size:11px;opacity:.7">379筆</span></div>
+    <div class="lv1-tab" data-prod="USB" onclick="selectProduct('USB')">USB <span style="font-size:11px;opacity:.7">974筆</span></div>
+  </div>
+
+  <!-- L2: Repair_Type cards -->
+
+  <div class="summary-row" id="summaryRow"></div>
+
+  <!-- Charts -->
+
+  <div class="chart-row">
+    <div class="card">
+      <div class="card-title">各 Repair_Type 有效筆數</div>
+      <canvas id="rtChart" height="200"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">SOP 種類數</div>
+      <canvas id="typeChart" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- SOP Detail -->
+
+  <div class="sop-panel">
+    <div class="sop-header">
+      <h2 id="sopTitle">請點選上方 Repair_Type 卡片</h2>
+      <div class="sop-meta" id="sopMeta"></div>
+    </div>
+    <div class="sop-list" id="sopList">
+      <div class="empty-msg">點選 Repair_Type 卡片查看 SOP 排行明細</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = {
+  "PCIe":{
+    "ENG":{"total":92,"types":26,"top":[["依照log進行維修Flash → 維修無效，回群聯分析 → 無顯示Fail CE，回群聯分析",29],["回群聯分析",9],["反應異常, 等候群聯指示",9],["複測 → PASS續GO / FAIL同Code進群聯RD分析",6],["無發生過, 反應異常處理流程",5],["檢查/更新FW BIN版號複測",5],["進群聯RD分析",4],["送回群聯分析",2]]},
+    "FAE":{"total":271,"types":153,"top":[["XRAY/AOI - 電路(圖檔綠色位置)複測",23],["XRAY/AOI - 電路(圖檔紫色位置)複測",16],["XRAY/AOI - 電路(圖檔淺藍色位置)複測",10],["回群聯分析",8],["X-RAY檢查PMIC/更換PMIC複測",6],["XRAY/AOI - 電路(圖檔洋紅色位置)複測",6],["Power check DDR → 更換DDR → 更換CTL",5],["手摸/熱像儀檢查FLH過熱情況修理後複測",5]]},
+    "RT":{"total":280,"types":82,"top":[["複測 → FAIL同Code進群聯RD分析",48],["複測 → FAIL同Code進群聯RD分析 (格式2)",28],["複測 → FAIL同Code進群聯分析",27],["複測 → FAIL進群聯分析 (格式2)",23],["複測 → FAIL進群聯分析 (格式3)",16],["複測 → FAIL更換CTL再複測",11],["複測 → FAIL進群聯RD分析 (格式3)",8],["複測 → FAIL進群聯分析 (格式4)",6]]},
+    "FLH":{"total":163,"types":38,"top":[["檢查FAIL log → 更換FLH/CTL → 進群聯分析",75],["檢查FAIL log → 更換FLH",23],["檢查FAIL log → 單一CE/Channel/All異常處理",15],["反應異常，等候群聯指示",7],["更換FLH複測 → 進群聯RD分析",6],["根據FAIL log更換FLH",2],["優先更換FLH → 無效更換CTL",2],["單一CE異常 → 更換FLH",2]]},
+    "CTL":{"total":240,"types":23,"top":[["CTL無法維修，報廢入庫",113],["更換CTL複測RDT → 進群聯RD分析",53],["更換CTL複測RDT (格式2)",42],["更換CTL複測 → 進群聯RD分析",8],["更換CTL複測 → 進群聯RD分析 (格式3)",4],["更換CTL複測 → 進群聯分析",3],["檢查FAIL log → 更換CTL複測",1],["更換CTL → 進群聯RD分析 (格式4)",1]]},
+    "MST":{"total":192,"types":9,"top":[["複測RDT → 進群聯RD分析",112],["複測RDT (格式2)",36],["複測RDT (格式3)",33],["重新開卡複測RDT",4],["複測RDT → 進群聯分析",3],["確認MST FW版本後複測",1],["複測RDT (短版)",1],["環境/測板/CONN複測新版RDT",1]]},
+    "OP":{"total":88,"types":57,"top":[["複測 → 進群聯RD分析",10],["複測 → 進群聯RD分析 (格式2)",6],["檢查S/N複測",3],["異常回饋Phison TE",3],["進群聯RD分析",3],["檢查INI複測",3],["檢查S/N複測 (短版)",2],["檢查Barcode複測",2]]},
+    "RP1":{"total":65,"types":48,"top":[["從PF1開始複測 → 更換FLH",13],["檢查MCU打件情況從PF1複測",3],["MFC/QMP回PF1重跑",2],["從PF1重新複測MST → 進群聯RD分析",2],["檢查金手指 → 從PF1複測",2],["從PF1複測，需Force boot code",1],["從PF1開始複測 → 進群聯分析",1],["從PF1重新複測MST → 進工廠維修站",1]]},
+    "DDR":{"total":20,"types":14,"top":[["更換DDR複測 → 進群聯RD分析",4],["檢查FAIL log → 更換DDR",3],["更換DDR → 更換CTL複測",2],["Power check DDR → 更換DDR",1],["Power check DDR → 更換DDR → 更換CTL",1],["更換DDR → 更換CTL再複測",1],["檢查FAIL log → 更換DDR → 進群聯分析",1],["更換DDR → 無效反應群聯",1]]},
+    "BIN":{"total":1,"types":1,"top":[["檢查PSID長度複測",1]]}
+  },
+  "SATA":{
+    "ENG":{"total":17,"types":9,"top":[["請用最新版，進行覆測",4],["請用最新版 → 更換FLASH → 更換CTL",3],["請用最新版 → 更換FLASH (格式2)",2],["請用最新版 (格式2)",2],["排除FLH/CTL製程問題 → 更換Flash",2],["檢查DEVSLP相關元件 → 更換CTL",1],["確認INI thermal sensor設定",1],["更換Thermal Sensor",1]]},
+    "FAE":{"total":94,"types":64,"top":[["Power check DDR → 更換DDR → 更換CTL",20],["Power check DDR → 更換DDR → 更換CTL (格式2)",6],["Power check DDR → 更換DDR → 更換CTL (格式3)",3],["回群聯分析",2],["X-ray確認CTL/Flash焊接 → 覆測",2],["X-RAY檢查CTL和Flash → 更換CTL後覆測",2],["XRAY確認CTL、C1~C8 → 覆測/更換CTL",2],["進群聯分析",1]]},
+    "RT":{"total":44,"types":31,"top":[["請用最新版，進行覆測",6],["複測 → 進群聯分析",4],["請用最新版 (格式2)",4],["Power Check → X-ray確認 → 更換CTL/FLH",2],["複測 → 進群聯RD分析",2],["不複測，回群聯分析",1],["確認PMIC/Loadswitch → 更換後覆測",1],["確認CTL/Connector/電容焊接",1]]},
+    "FLH":{"total":79,"types":46,"top":[["根據Log更換對應FLASH → 更換CTL",10],["排除FLH/CTL製程問題 → 更換Flash → 更換CTL",6],["請用最新版，進行覆測",4],["請用最新版 → 更換FLASH",4],["根據Log判斷CE → 更換FLASH → 更換CTL",4],["PCBA不良率判斷 → 更換CE Flash",3],["依據Log顯示位置更換Flash後覆測",3],["排除製程問題 → 更換Flash (格式2)",3]]},
+    "CTL":{"total":52,"types":26,"top":[["更換CTL → 回產線重跑流程",14],["請用最新版複測 → 更換CTL",6],["請用最新版複測 → 更換CTL (格式2)",3],["Check MP版本 → 更換CTL複測新版RDT",2],["維修CTL後複測",2],["請用最新版 → 更換CTL (格式3)",2],["請用最新版 → 更換CTL (格式4)",2],["Power check DDR → 更換CTL",2]]},
+    "MST":{"total":13,"types":5,"top":[["複測RDT → 進群聯RD分析",9],["重跑RDT閃燈",1],["複測RDT (格式2)",1],["複RDT → 進群聯RD分析",1],["重跑RDT閃燈 → 依據異常維修",1]]},
+    "OP":{"total":13,"types":11,"top":[["請用最新版，進行覆測",3],["更換損壞零件 → 重跑burn-in",1],["檢查INI檔案S/N設定複測",1],["檢查S/N → 重跑MST複測",1],["複測 → 進群聯RD分析",1],["檢查/更換QR Code貼紙",1],["請用最新版 (格式2)",1],["進群聯RD分析",1]]},
+    "RP1":{"total":58,"types":32,"top":[["從PF1開始複測 → 更換FLH",13],["複測PF1 → 進群聯RD分析",5],["請用最新版，進行覆測",5],["請用最新版 (格式2)",3],["複測RDT → 進群聯RD分析",2],["複測 → 進群聯RD分析",2],["複測PF1 → 清潔金手指",2],["複測PF1 → 查看C1-C8短路",2]]},
+    "DDR":{"total":8,"types":2,"top":[["更換DDR → 回產線重跑流程",7],["覆測同Error Code → 更換DDR",1]]}
+  },
+  "USB":{
+    "ENG":{"total":73,"types":20,"top":[["依照log進行維修Flash → 維修無效，回群聯分析",29],["反應異常, 等候群聯指示",8],["複測 → 進群聯RD分析",6],["檢查/更新FW BIN版號複測",5],["進群聯RD分析",4],["無發生過, 反應異常處理流程",4],["檢查S/N複測",2],["檢查/更新FW BIN版號複測 (格式2)",2]]},
+    "FAE":{"total":213,"types":120,"top":[["送回群聯分析",16],["XRAY/AOI - 電路(圖檔紫色位置)複測",16],["XRAY/AOI - 電路(圖檔淺藍色位置)複測",10],["XRAY/AOI - 電路(圖檔洋紅色位置)複測",6],["手摸/熱像儀檢查FLH過熱情況修理後複測",6],["X-RAY檢查PMIC/更換PMIC複測",6],["XRAY/AOI - 電路(圖檔綠色位置)複測",5],["XRAY/AOI - 電路(圖檔橙色位置)複測",5]]},
+    "RT":{"total":175,"types":69,"top":[["複測 → 進群聯RD分析",28],["複測 → 進群聯分析",27],["複測 → 更換CTL再複測",10],["複測 → 進群聯RD分析 (格式2)",8],["複測 → 進群聯RD分析 (格式3)",8],["複測 → 進群聯分析 (格式2)",6],["複測檢查網路連線",5],["複測 → 進工廠RD分析",4]]},
+    "FLH":{"total":163,"types":38,"top":[["檢查FAIL log → 更換FLH/CTL → 進群聯分析",88],["檢查FAIL log → 單一CE/Channel/All異常處理",17],["反應異常，等候群聯指示",7],["更換FLH複測 → 進群聯RD分析",6],["Re-PF1 → Check fail log and change flash",4],["檢查FAIL log → 更換FLH → 無效更換CTL",3],["優先更換FLH → 無效更換CTL",2],["單一CE異常 → 進群聯RD分析",2]]},
+    "CTL":{"total":106,"types":21,"top":[["更換CTL複測RDT → 進群聯RD分析",53],["更換CTL複測RDT (格式2)",21],["更換CTL複測 → 進群聯RD分析",8],["CTL無法維修，報廢入庫",3],["更換CTL複測 → 進群聯RD分析 (格式2)",3],["更換CTL複測 → 進群聯分析",3],["檢查FAIL log → 更換CTL複測",1],["維修CTL後複測",1]]},
+    "MST":{"total":147,"types":9,"top":[["複測RDT → 進群聯RD分析",65],["複測RDT (格式2)",37],["複測RDT (格式3)",33],["複測RDT → 進群聯分析",4],["重新開卡複測RDT",4],["複測RDT → 進群聯分析 (格式2)",1],["重跑RDT閃燈",1],["環境/測板/CONN複測新版RDT",1]]},
+    "OP":{"total":25,"types":18,"top":[["異常回饋Phison TE",3],["檢查S/N複測",2],["更換FLH複測",2],["複測 → 進群聯RD分析",2],["複測 → 進群聯RD分析 (格式2)",2],["檢查S/N複測 → 進群聯RD分析",2],["進群聯RD分析",1],["回群聯RD分析",1]]},
+    "RP1":{"total":48,"types":41,"top":[["從PF1開始複測 → 更換FLH",5],["檢查MCU打件情況從PF1複測",3],["檢查金手指 → 從PF1複測",2],["從PF1開始複測 → 進群聯分析",1],["下EraseAll複測PF1",1],["換PORT複測RDT",1],["新版MST覆測",1],["複測 → 進群聯RD分析",1]]},
+    "DDR":{"total":21,"types":14,"top":[["更換DDR複測 → 進群聯RD分析",4],["Power check DDR → 更換DDR → 回產線",3],["檢查FAIL log → 更換DDR",2],["更換DDR → 更換CTL複測",2],["Power check DDR → 更換DDR → 更換CTL",1],["Power check DDR → 更換DDR → 更換CTL (格式2)",1],["檢查FAIL log → 更換DDR → 進群聯分析",1],["更換DDR → 更換CTL再複測",1]]}
+  }
+};
+
+const RT_ORDER = ['ENG','FAE','RT','FLH','CTL','MST','OP','RP1','DDR','BIN'];
+const COLORS   = ['#6ee7b7','#f59e0b','#818cf8','#f472b6','#38bdf8','#fb923c','#a78bfa','#34d399','#fbbf24','#60a5fa'];
+
+let curProd = 'PCIe', curRT = null, rtChart = null, typeChart = null;
+
+Chart.defaults.color = '#64748b';
+Chart.defaults.borderColor = '#2e3247';
+Chart.defaults.font.family = "'Noto Sans TC', sans-serif";
+
+function selectProduct(prod) {
+  curProd = prod; curRT = null;
+  document.querySelectorAll('.lv1-tab').forEach(t => t.classList.toggle('active', t.dataset.prod === prod));
+  renderSummary();
+  renderCharts();
+  clearSOP();
+}
+
+function selectRT(rt) {
+  const d = DATA[curProd][rt];
+  if (!d) return;
+  curRT = rt;
+  document.querySelectorAll('.scard').forEach(c => c.classList.toggle('active', c.dataset.rt === rt));
+  renderSOP(rt, d);
+}
+
+function renderSummary() {
+  const pd = DATA[curProd];
+  document.getElementById('summaryRow').innerHTML = RT_ORDER.map((rt, i) => {
+    const d = pd[rt];
+    if (!d) return `<div class="scard unavail"><div class="scard-type" style="color:${COLORS[i]}">${rt}</div><div class="scard-val" style="font-size:14px;color:var(--muted)">—</div><div class="scard-sub">無資料</div></div>`;
+    return `<div class="scard" data-rt="${rt}" onclick="selectRT('${rt}')">
+      <div class="scard-type" style="color:${COLORS[i]}">${rt}</div>
+      <div class="scard-val">${d.total}</div>
+      <div class="scard-sub">${d.types} 種SOP</div>
+    </div>`;
+  }).join('');
+}
+
+function renderCharts() {
+  const pd = DATA[curProd];
+  const labels = RT_ORDER.filter(rt => pd[rt]);
+  const totals = labels.map(rt => pd[rt].total);
+  const types  = labels.map(rt => pd[rt].types);
+  const colors = labels.map(rt => COLORS[RT_ORDER.indexOf(rt)]);
+
+  if (rtChart) rtChart.destroy();
+  if (typeChart) typeChart.destroy();
+
+  rtChart = new Chart(document.getElementById('rtChart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: totals, backgroundColor: colors, borderRadius: 5, borderSkipped: false }] },
+    options: { plugins:{ legend:{display:false} }, scales:{ x:{grid:{display:false}}, y:{grid:{color:'rgba(46,50,71,.5)'}} } }
+  });
+  typeChart = new Chart(document.getElementById('typeChart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: types, backgroundColor: colors.map(c=>c+'99'), borderColor: colors, borderWidth:1.5, borderRadius:5 }] },
+    options: { plugins:{ legend:{display:false} }, scales:{ x:{grid:{display:false}}, y:{grid:{color:'rgba(46,50,71,.5)'}} } }
+  });
+}
+
+function renderSOP(rt, d) {
+  document.getElementById('sopTitle').textContent = `${curProd}  →  ${rt}`;
+  document.getElementById('sopMeta').textContent = `共 ${d.total} 筆  ／  ${d.types} 種 SOP（顯示 Top ${d.top.length}）`;
+  const maxV = Math.max(...d.top.map(i => i[1]));
+  document.getElementById('sopList').innerHTML = d.top.map(([sop, cnt], idx) =>
+    `<div class="sop-item">
+      <div class="sop-rank">#${idx+1}</div>
+      <div>
+        <div class="sop-text">${sop}</div>
+        <div class="bar-fill" style="width:${Math.round(cnt/maxV*100)}%"></div>
+      </div>
+      <div class="sop-count">${cnt}</div>
+    </div>`
+  ).join('');
+}
+
+function clearSOP() {
+  document.getElementById('sopTitle').textContent = '請點選上方 Repair_Type 卡片';
+  document.getElementById('sopMeta').textContent = '';
+  document.getElementById('sopList').innerHTML = '<div class="empty-msg">點選 Repair_Type 卡片查看 SOP 排行明細</div>';
+}
+
+selectProduct('PCIe');
+</script>
+
+</body>
+</html>
