@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>維修站 TOP1_ERC 分析 2501–2604</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+- { margin:0; padding:0; box-sizing:border-box; }
+body {
+background: #f4f6fb;
+font-family: ‘Noto Sans TC’, sans-serif;
+color: #1a1d2e;
+padding: 32px 28px 52px;
+max-width: 1080px;
+margin: 0 auto;
+}
+.page-header { margin-bottom: 28px; }
+.page-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.page-sub { font-size: 13px; color: #8891a8; }
+.kpi-strip {
+display: grid;
+grid-template-columns: repeat(4, 1fr);
+gap: 12px;
+margin-bottom: 22px;
+}
+.kpi {
+background: #fff;
+border-radius: 12px;
+padding: 16px 14px;
+border-top: 3px solid var(–c);
+box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.kpi-label { font-size: 11px; color: #8891a8; font-weight: 500; margin-bottom: 6px; letter-spacing:.04em; }
+.kpi-val { font-size: 26px; font-weight: 700; color: var(–c); line-height: 1; }
+.kpi-sub { font-size: 12px; color: #8891a8; margin-top: 4px; }
+.tabs {
+display: flex;
+gap: 8px;
+margin-bottom: 18px;
+flex-wrap: wrap;
+}
+.tab {
+padding: 7px 20px;
+border-radius: 8px;
+border: 1.5px solid #dde0ee;
+background: #fff;
+font-size: 13px;
+font-weight: 500;
+color: #6b7595;
+cursor: pointer;
+transition: all .18s;
+}
+.tab.active {
+background: var(–tc);
+border-color: var(–tc);
+color: #fff;
+}
+.card {
+background: #fff;
+border-radius: 14px;
+padding: 22px 24px 20px;
+box-shadow: 0 1px 4px rgba(0,0,0,.06);
+margin-bottom: 18px;
+}
+.card-header {
+display: flex;
+align-items: flex-start;
+justify-content: space-between;
+margin-bottom: 18px;
+flex-wrap: wrap;
+gap: 8px;
+}
+.card-title { font-size: 14px; font-weight: 600; color: #1a1d2e; }
+.card-desc { font-size: 12px; color: #8891a8; margin-top: 3px; }
+.badge {
+font-size: 11px;
+font-weight: 600;
+padding: 3px 10px;
+border-radius: 20px;
+background: var(–bc);
+color: #fff;
+white-space: nowrap;
+}
+.two-col {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 18px;
+margin-bottom: 18px;
+}
+.chart-h300 { position:relative; height:300px; }
+.chart-h380 { position:relative; height:380px; }
+.hbar-list { display:flex; flex-direction:column; gap:6px; }
+.hbar-row {
+display: grid;
+grid-template-columns: 88px 1fr 44px;
+align-items: center;
+gap: 10px;
+}
+.hbar-label {
+font-family: ‘DM Mono’, monospace;
+font-size: 11px;
+font-weight: 500;
+color: #4a5068;
+text-align: right;
+white-space: nowrap;
+}
+.hbar-track {
+height: 20px;
+background: #f0f2fa;
+border-radius: 4px;
+overflow: hidden;
+}
+.hbar-fill {
+height: 100%;
+border-radius: 4px;
+background: var(–c);
+}
+.hbar-val {
+font-family: ‘DM Mono’, monospace;
+font-size: 11px;
+font-weight: 600;
+color: var(–c);
+}
+.view { display:none; }
+.view.active { display:block; }
+@media (max-width:700px) {
+.two-col { grid-template-columns:1fr; }
+.kpi-strip { grid-template-columns: repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+<div class="page-header">
+ <div class="page-title">維修站 — TOP1_ERC 異常代碼分析</div>
+ <div class="page-sub">篩選條件：異常站點 ＝ 維修　·　月份 2501 ~ 2604　·　依主要收件人分切</div>
+</div>
+<div class="kpi-strip">
+ <div class="kpi" style="--c:#6366f1">
+   <div class="kpi-label">維修站總筆數</div>
+   <div class="kpi-val">1,237</div>
+   <div class="kpi-sub">2501 ~ 2604</div>
+ </div>
+ <div class="kpi" style="--c:#3b82f6">
+   <div class="kpi-label">PCIe</div>
+   <div class="kpi-val">1,020</div>
+   <div class="kpi-sub">82.5%</div>
+ </div>
+ <div class="kpi" style="--c:#f59e0b">
+   <div class="kpi-label">SATA</div>
+   <div class="kpi-val">198</div>
+   <div class="kpi-sub">16.0%</div>
+ </div>
+ <div class="kpi" style="--c:#10b981">
+   <div class="kpi-label">PD</div>
+   <div class="kpi-val">18</div>
+   <div class="kpi-sub">1.5%</div>
+ </div>
+</div>
+<div class="tabs">
+ <button class="tab active" style="--tc:#6366f1" onclick="switchView('all', this)">📊 整體 TOP20</button>
+ <button class="tab" style="--tc:#3b82f6" onclick="switchView('pcie', this)">🔵 PCIe TOP15</button>
+ <button class="tab" style="--tc:#f59e0b" onclick="switchView('sata', this)">🟡 SATA TOP15</button>
+ <button class="tab" style="--tc:#10b981" onclick="switchView('pd', this)">🟢 PD 全部</button>
+</div>
+<!-- ALL -->
+<div id="view-all" class="view active">
+ <div class="card">
+   <div class="card-header">
+     <div>
+       <div class="card-title">整體維修站 TOP1_ERC 前 20 名</div>
+       <div class="card-desc">全主要收件人合計</div>
+     </div>
+     <span class="badge" style="--bc:#6366f1">全部</span>
+   </div>
+   <div class="chart-h300">
+     <canvas id="chartAll"></canvas>
+   </div>
+ </div>
+ <div class="card">
+   <div class="card-header">
+     <div>
+       <div class="card-title">各收件人佔比</div>
+       <div class="card-desc">PCIe 主導維修站工單來源</div>
+     </div>
+   </div>
+   <div class="chart-h300" style="max-width:400px; margin:0 auto">
+     <canvas id="chartPie"></canvas>
+   </div>
+ </div>
+</div>
+<!-- PCIe -->
+<div id="view-pcie" class="view">
+ <div class="card">
+   <div class="card-header">
+     <div>
+       <div class="card-title">PCIe — TOP1_ERC 前 15 名</div>
+       <div class="card-desc">有效記錄 1,020 筆</div>
+     </div>
+     <span class="badge" style="--bc:#3b82f6">PCIe · 1,020 筆</span>
+   </div>
+   <div class="chart-h380">
+     <canvas id="chartPcie"></canvas>
+   </div>
+ </div>
+</div>
+<!-- SATA -->
+<div id="view-sata" class="view">
+ <div class="card">
+   <div class="card-header">
+     <div>
+       <div class="card-title">SATA — TOP1_ERC 前 15 名</div>
+       <div class="card-desc">有效記錄 198 筆</div>
+     </div>
+     <span class="badge" style="--bc:#f59e0b">SATA · 198 筆</span>
+   </div>
+   <div class="chart-h380">
+     <canvas id="chartSata"></canvas>
+   </div>
+ </div>
+</div>
+<!-- PD -->
+<div id="view-pd" class="view">
+ <div class="card">
+   <div class="card-header">
+     <div>
+       <div class="card-title">PD — TOP1_ERC 全部</div>
+       <div class="card-desc">有效記錄 17 筆</div>
+     </div>
+     <span class="badge" style="--bc:#10b981">PD · 18 筆</span>
+   </div>
+   <div id="pdBars" class="hbar-list" style="--c:#10b981; padding: 4px 0 8px;"></div>
+ </div>
+</div>
+<script>
+Chart.defaults.font.family = "'Noto Sans TC', sans-serif";
+Chart.defaults.color = '#8891a8';
+const ttOpts = () => ({
+ backgroundColor: '#fff',
+ borderColor: '#e0e4f0', borderWidth: 1,
+ titleColor: '#1a1d2e', bodyColor: '#4a5068', padding: 10,
+ callbacks: { label: ctx => `  ${ctx.raw} 筆` }
+});
+const hOpts = (max) => ({
+ responsive: true, maintainAspectRatio: false,
+ indexAxis: 'y',
+ plugins: { legend: { display: false }, tooltip: ttOpts() },
+ scales: {
+   x: { grid: { color: '#f0f2fa' }, ticks: { font: { size: 11 } }, max },
+   y: { grid: { display: false }, ticks: { font: { size: 11, family: "'DM Mono', monospace" } } }
+ }
+});
+// ALL TOP20
+new Chart(document.getElementById('chartAll'), {
+ type: 'bar',
+ data: {
+   labels: ['T_B20','I_E522','F_D02','D_xx2','D_A178','I_A87','M_T131','D_x26','F_A178','I_A178','I_x88','I_E24','M_B133','D_xx3','I_F28','A_xA23','T_R20','I_x497','F_x86','M_T35'],
+   datasets: [{ data: [62,43,30,25,25,24,22,20,20,19,19,17,16,16,16,16,15,14,14,13], backgroundColor: '#6366f1cc', borderWidth: 0, borderRadius: 4 }]
+ },
+ options: {
+   responsive: true, maintainAspectRatio: false,
+   plugins: { legend: { display: false }, tooltip: ttOpts() },
+   scales: {
+     x: { grid: { display: false }, ticks: { font: { size: 11, family:"'DM Mono',monospace" } } },
+     y: { grid: { color: '#f0f2fa' }, ticks: { font: { size: 11 } } }
+   }
+ }
+});
+// Pie
+new Chart(document.getElementById('chartPie'), {
+ type: 'doughnut',
+ data: {
+   labels: ['PCIe','SATA','PD','PATA'],
+   datasets: [{ data: [1020, 198, 18, 1], backgroundColor: ['#3b82f6','#f59e0b','#10b981','#e5e7eb'], borderWidth: 0 }]
+ },
+ options: {
+   responsive: true, maintainAspectRatio: false,
+   cutout: '62%',
+   plugins: {
+     legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 16 } },
+     tooltip: { backgroundColor:'#fff', borderColor:'#e0e4f0', borderWidth:1, titleColor:'#1a1d2e', bodyColor:'#4a5068', padding:10,
+       callbacks: { label: ctx => `  ${ctx.label}：${ctx.raw.toLocaleString()} 筆` } }
+   }
+ }
+});
+// PCIe TOP15
+new Chart(document.getElementById('chartPcie'), {
+ type: 'bar',
+ data: {
+   labels: ['T_B20','I_E522','D_xx2','D_A178','D_x26','F_D02','F_A178','I_A178','M_T131','I_x88','I_E24','M_B133','D_xx3','I_F28','A_xA23'],
+   datasets: [{ data: [59,43,25,25,20,20,20,19,19,19,17,16,16,16,16], backgroundColor: '#3b82f6bb', borderWidth: 0, borderRadius: 4 }]
+ },
+ options: hOpts(65)
+});
+// SATA TOP15
+new Chart(document.getElementById('chartSata'), {
+ type: 'bar',
+ data: {
+   labels: ['I_A87','F_D02','I_x01','F_A78','F_D63','M_X158','F_J10','I_X01','D_T071','F_T31','F_T71','S_C01','M_x158','F_D66','I_x87'],
+   datasets: [{ data: [24,10,9,6,6,5,5,5,5,5,5,5,4,4,4], backgroundColor: '#f59e0bbb', borderWidth: 0, borderRadius: 4 }]
+ },
+ options: hOpts(28)
+});
+// PD bars
+const pdData = [['0x9003',7],['0x5504',1],['0x5000',1],['0x5004',1],['0x2508',1],['0x250a',1],['0x551f',1],['0_X9003',1],['0_X900D',1],['0x4030',1],['0x3000',1]];
+const pdMax = 7;
+const pdContainer = document.getElementById('pdBars');
+pdData.forEach(([lbl, val]) => {
+ const pct = (val / pdMax * 100).toFixed(0);
+ pdContainer.innerHTML += `
+   <div class="hbar-row" style="--c:#10b981">
+     <div class="hbar-label">${lbl}</div>
+     <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%"></div></div>
+     <div class="hbar-val">${val}</div>
+   </div>`;
+});
+function switchView(id, btn) {
+ document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+ document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+ document.getElementById('view-' + id).classList.add('active');
+ btn.classList.add('active');
+}
+</script>
+</body>
+</html>
